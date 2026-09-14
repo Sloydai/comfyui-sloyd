@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sloyd"
+version = "0.1.0"
+description = "Generate 3D models and 360° skyboxes with the Sloyd API, directly in ComfyUI."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31.0",
+]
+classifiers = [
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Repository = "https://github.com/sloyd-ai/comfyui-sloyd"
+Documentation = "https://api-dashboard.sloyd.ai/documentation/"
+"Bug Tracker" = "https://github.com/sloyd-ai/comfyui-sloyd/issues"
+
+[tool.comfy]
+PublisherId = "sloyd"
+DisplayName = "Sloyd AI - 3D model generator"
+requires-comfyui = ">=0.3.40"
+
+[tool.setuptools]
+packages = ["sloyd_nodes"]
+package-dir = { sloyd_nodes = "src/sloyd_nodes" }

@@ -1,0 +1,17 @@
+# Sloyd API credentials. Never commit this.
+sloyd_config.json
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.venv/
+venv/
+.env
+
+.DS_Store
+.idea/
+.vscode/

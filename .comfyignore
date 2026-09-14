@@ -1,0 +1,9 @@
+# Never ship credentials in the published archive.
+sloyd_config.json
+
+# Development-only files.
+tests/
+scripts/
+.github/
+*.md
+!README.md
