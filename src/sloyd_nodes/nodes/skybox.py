@@ -17,7 +17,7 @@ import os
 import torch
 
 from .._compat import logger
-from ..client import SKYBOX_EXTENSIONS
+from ..client import skybox_panorama_url
 from ..images import image_bytes_to_tensor, tensor_to_png_bytes
 from ..types import KIND_SKYBOX, SloydJob
 from .base import (
@@ -107,10 +107,14 @@ class SloydSkyboxFromImage:
             logger.info("Sloyd skybox-from-image job %s started", job_id)
             job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd skybox")
 
-            content, extension = client.download_asset(job_id, SKYBOX_EXTENSIONS)
+            # Skyboxes return their result inside the job JSON, not at a
+            # jobs/{id}.glb-style URL. The equirectangular panorama is a WEBP.
+            panorama_url = skybox_panorama_url(job)
+            content = client.download_url(panorama_url)
+            extension = os.path.splitext(panorama_url.split("?")[0])[1] or ".webp"
 
             directory = output_dir()
-            absolute_path = os.path.join(directory, f"{job_id}{extension}")
+            absolute_path = os.path.join(directory, f"{job_id}_panorama{extension}")
             with open(absolute_path, "wb") as handle:
                 handle.write(content)
             relative_path = to_relative_output_path(absolute_path)

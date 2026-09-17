@@ -244,12 +244,30 @@ class SloydClient:
 
     # --- Downloading --------------------------------------------------------
 
+    def download_url(self, url: str) -> bytes:
+        """Fetch a fully-qualified asset URL. No auth: these buckets are public.
+
+        Used when the result location comes back inside the job response (skyboxes
+        return ``flatBoxData.panoramaUrl``) rather than being derived from the id.
+        """
+        try:
+            response = requests.get(url, timeout=self._timeout)
+        except requests.RequestException as exc:
+            raise SloydError(f"Could not download the Sloyd asset at {url}: {exc}") from exc
+        if response.status_code != 200 or not response.content:
+            raise SloydError(
+                f"Sloyd asset at {url} was not available (HTTP {response.status_code})."
+            )
+        return response.content
+
     def download_asset(
         self, job_id: str, extensions: tuple[str, ...] = GLB_EXTENSIONS
     ) -> tuple[bytes, str]:
         """Fetch the finished asset, trying each candidate extension in order.
 
-        The asset URL is public and derived from the job id, so no auth is sent.
+        For 3D generation the asset URL is public and derived from the job id, so no
+        auth is sent. (Skyboxes do not follow this pattern; use ``download_url`` with
+        the ``panoramaUrl`` from the job response instead.)
         """
         attempts: list[str] = []
         for extension in extensions:
@@ -293,6 +311,33 @@ class SloydClient:
 
     def __exit__(self, *exc_info: object) -> None:
         self.close()
+
+
+def skybox_panorama_url(job: dict[str, Any]) -> str:
+    """Equirectangular panorama URL from a completed skybox/worldbox job.
+
+    Skybox jobs do not publish to jobs/{id}.glb. The result lives in the job JSON
+    at flatBoxData.panoramaUrl, alongside a 6-face cubemap in flatBoxData.layers.
+    """
+    flat = job.get("flatBoxData")
+    if isinstance(flat, dict):
+        url = flat.get("panoramaUrl")
+        if isinstance(url, str) and url:
+            return url
+    raise SloydError(
+        f"Sloyd skybox job {job.get('id', '?')} succeeded but its response has no "
+        "flatBoxData.panoramaUrl. The API response shape may have changed."
+    )
+
+
+def skybox_cubemap_urls(job: dict[str, Any]) -> list[dict[str, Any]]:
+    """The 6 cubemap face layers from a skybox job, if present."""
+    flat = job.get("flatBoxData")
+    if isinstance(flat, dict):
+        layers = flat.get("layers")
+        if isinstance(layers, list):
+            return [layer for layer in layers if isinstance(layer, dict) and layer.get("url")]
+    return []
 
 
 def _current_stage(job: dict[str, Any]) -> str | None:
