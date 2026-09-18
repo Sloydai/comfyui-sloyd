@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sloyd"
-version = "0.1.0"
+version = "0.1.1"
 # Shown in ComfyUI-Manager search results and on the Registry listing. Lead with the
 # capability users search for ("3D model", "skybox"), since this is the discovery text.
 description = "Generate production-ready 3D models, 360° skyboxes, and images from text or reference images using the Sloyd API."
