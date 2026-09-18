@@ -1,6 +1,14 @@
 # Sloyd API credentials. Never commit this.
 sloyd_config.json
 
+# Generated/downloaded 3D and image assets. Only the listing artwork belongs in
+# assets/ (icon.png, banner.png); model files land there by accident when testing.
+assets/*.glb
+assets/*.gltf
+assets/*.fbx
+assets/*.obj
+assets/*.webp
+
 __pycache__/
 *.py[cod]
 *.egg-info/
