@@ -11,18 +11,24 @@ Generate 3D models and 360° skyboxes with the [Sloyd API](https://api-dashboard
 | **Sloyd: Skybox from Image** | `POST /jobs/image-upload` → `POST /jobs/skybox-from-image` | `IMAGE`, `SLOYD_JOB`, `skybox_path`, `job_id` |
 | **Sloyd: Credentials** | — | `SLOYD_CREDENTIALS` |
 | **Sloyd: Save Asset** | — | `saved_path` |
+| **Sloyd: Model to 3D File** | — | `model_3d` (for Preview 3D / Save 3D) |
 | **Sloyd: Job Info** | — | `job_id`, `kind`, `asset_path`, `gen_params` |
 
 Generated files land in `ComfyUI/output/sloyd/`.
 
 ### Wiring
 
-`model_path` is a path relative to `ComfyUI/output`, which is exactly what the
-built-in **Preview3D** node expects:
+To view a generated model, convert it to a `model_3d` object with **Sloyd: Model to
+3D File**, then feed that into **Preview 3D (Advanced)** or a **Save 3D** node:
 
 ```
-Sloyd: Text to 3D ──model_path──> Preview3D
+Sloyd: Text to 3D ──model_path──> Sloyd: Model to 3D File ──model_3d──> Preview 3D (Advanced)
 ```
+
+(Current ComfyUI 3D nodes accept a `model_3d` object, not a path string, so the
+bridge node is what makes the connection. On older ComfyUI builds without the File3D
+type, the bridge node is hidden; use **Sloyd: Save Asset** with the `model_path`
+output instead.)
 
 `skybox` is a normal ComfyUI `IMAGE` (equirectangular), so it flows into
 `SaveImage`, upscalers, and community 360° viewers such as
