@@ -48,20 +48,28 @@ TOPOLOGIES = ["auto", "quads", "triangles"]
 MAX_FACE_COUNT = 500000
 MAX_PROMPT_LENGTH = 4096
 
-# Widget definition reused by every generation node. Sloyd has no seed parameter;
-# this exists purely so ComfyUI's input hash changes when the user wants a re-roll.
-# Without it a repeat queue press returns the cached result instead of a new model.
+# Widget reused by every generation node. Sloyd has no seed parameter; this exists
+# purely so ComfyUI's input hash changes when the user wants a fresh generation.
+#
+# Defaults to "fixed", NOT "randomize", on purpose. Every run of a Sloyd node costs
+# credits and takes minutes. With "randomize" the widget rewrites itself after each
+# run, so the input hash always changes and every upstream node re-executes and
+# re-bills, which also makes chains like Text to 3D -> Retexture impossible to
+# iterate on cheaply. With "fixed", ComfyUI serves the cached result and only the
+# nodes you actually changed re-run. Bump the seed (or switch the widget to
+# randomize) when you deliberately want a new generation.
 SEED_INPUT = (
     "INT",
     {
         "default": 0,
         "min": 0,
         "max": 0xFFFFFFFF,
-        "control_after_generate": True,
+        "control_after_generate": "fixed",
         "tooltip": (
-            "Forces the node to re-run so you get a fresh generation. Sloyd has no seed "
-            "parameter, so this does not make results reproducible; it only busts the "
-            "ComfyUI cache. Each re-run costs credits."
+            "Change this to force a fresh generation (each one costs credits). Sloyd has "
+            "no seed parameter, so this does not make results reproducible; it only busts "
+            "the ComfyUI cache. Left alone, re-running reuses the cached result for free, "
+            "which is what lets you iterate on a downstream node like Retexture."
         ),
     },
 )
