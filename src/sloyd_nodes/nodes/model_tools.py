@@ -23,6 +23,13 @@ from .base import (
 RETURN_TYPES = (MODEL_3D_TYPE, "SLOYD_JOB", "STRING", "STRING")
 RETURN_NAMES = ("model_3d", "sloyd_job", "model_path", "job_id")
 
+# "auto" is deliberately omitted: on /jobs/retexture it yields an untextured model
+# (see the note on the texture_resolution widget). "none" is kept for callers who
+# genuinely want geometry only, so that intent stays expressible and explicit.
+RETEXTURE_TEXTURE_RESOLUTIONS = [
+    res for res in TEXTURE_RESOLUTIONS if res != "auto"
+]
+
 _SOURCE_INPUTS = {
     "sloyd_job": ("SLOYD_JOB", {"tooltip": "Source model from an upstream Sloyd 3D node."}),
     "job_id": (
@@ -51,9 +58,21 @@ class SloydRetexture:
                         "tooltip": "Describe the new texture. Up to 4096 characters.",
                     },
                 ),
+                # Defaults to "2k", not "auto". Sloyd's /jobs/retexture returns a
+                # geometry-only GLB when textureResolution is "auto": the job reports
+                # success and is tagged pbr/coloured, but the exported GLB contains
+                # zero images and a default grey material, so the model renders white.
+                # An explicit resolution bakes the texture correctly. ("auto" behaves
+                # fine on text-to-3d, which makes this easy to miss.)
+                # Verified on source su5hqeb6: job llu2b460 (auto) -> 1.3 MB, 0 textures;
+                # job b3pppweo (2k) -> 6.4 MB, 3 textures, correct colour.
                 "texture_resolution": (
-                    TEXTURE_RESOLUTIONS,
-                    {"default": "auto", "tooltip": "Requested output texture resolution."},
+                    RETEXTURE_TEXTURE_RESOLUTIONS,
+                    {
+                        "default": "2k",
+                        "tooltip": "Output texture resolution. Avoid 'auto' here: the Sloyd "
+                        "retexture endpoint currently returns an untextured model with 'auto'.",
+                    },
                 ),
                 "seed": SEED_INPUT,
             },
