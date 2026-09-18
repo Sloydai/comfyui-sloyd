@@ -13,6 +13,7 @@ from .._compat import logger
 from ..images import tensor_to_png_bytes
 from .base import (
     CATEGORY_ENV,
+    OUTPUT_MAX_SIZE_INPUT,
     SEED_INPUT,
     TIMEOUT_INPUT,
     finish_skybox_job,
@@ -54,6 +55,7 @@ class SloydTextToSkybox:
             },
             "optional": {
                 "gen_style_id": _GEN_STYLE_INPUT,
+                "output_max_size": OUTPUT_MAX_SIZE_INPUT,
                 "timeout_seconds": TIMEOUT_INPUT,
             },
         }
@@ -70,6 +72,7 @@ class SloydTextToSkybox:
         seed: int,
         gen_style_id: str = "",
         sloyd_credentials=None,
+        output_max_size: int = 2048,
         timeout_seconds: int = 900,
     ):
         cleaned_prompt = validate_prompt(prompt, required=True)
@@ -80,7 +83,10 @@ class SloydTextToSkybox:
             )
             logger.info("Sloyd text-to-worldbox job %s started", job_id)
             job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd skybox")
-            return finish_skybox_job(client, job_id, "text-to-worldbox", job, prompt=cleaned_prompt)
+            return finish_skybox_job(
+                client, job_id, "text-to-worldbox", job,
+                prompt=cleaned_prompt, output_max_size=output_max_size,
+            )
 
 
 class SloydSkyboxFromImage:
@@ -107,6 +113,7 @@ class SloydSkyboxFromImage:
             },
             "optional": {
                 "gen_style_id": _GEN_STYLE_INPUT,
+                "output_max_size": OUTPUT_MAX_SIZE_INPUT,
                 "timeout_seconds": TIMEOUT_INPUT,
             },
         }
@@ -124,6 +131,7 @@ class SloydSkyboxFromImage:
         seed: int,
         gen_style_id: str = "",
         sloyd_credentials=None,
+        output_max_size: int = 2048,
         timeout_seconds: int = 900,
     ):
         cleaned_prompt = validate_prompt(prompt, required=False)
@@ -141,7 +149,10 @@ class SloydSkyboxFromImage:
             )
             logger.info("Sloyd skybox-from-image job %s started", job_id)
             job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd skybox")
-            return finish_skybox_job(client, job_id, "skybox-from-image", job, prompt=cleaned_prompt)
+            return finish_skybox_job(
+                client, job_id, "skybox-from-image", job,
+                prompt=cleaned_prompt, output_max_size=output_max_size,
+            )
 
 
 class SloydEditSkybox:
@@ -172,6 +183,7 @@ class SloydEditSkybox:
                     },
                 ),
                 "gen_style_id": _GEN_STYLE_INPUT,
+                "output_max_size": OUTPUT_MAX_SIZE_INPUT,
                 "timeout_seconds": TIMEOUT_INPUT,
             },
         }
@@ -190,6 +202,7 @@ class SloydEditSkybox:
         job_id: str = "",
         gen_style_id: str = "",
         sloyd_credentials=None,
+        output_max_size: int = 2048,
         timeout_seconds: int = 900,
     ):
         cleaned_prompt = validate_prompt(prompt, required=True)
@@ -201,4 +214,7 @@ class SloydEditSkybox:
             )
             logger.info("Sloyd skybox-edit job %s started (from %s)", new_id, source_id)
             job = client.wait_for_job(new_id, float(timeout_seconds), "Sloyd skybox edit")
-            return finish_skybox_job(client, new_id, "skybox-edit", job, prompt=cleaned_prompt)
+            return finish_skybox_job(
+                client, new_id, "skybox-edit", job,
+                prompt=cleaned_prompt, output_max_size=output_max_size,
+            )

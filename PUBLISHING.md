@@ -27,6 +27,23 @@ without them looks unfinished next to competitors.
 Both must be publicly reachable URLs (e.g. committed to this repo and referenced via
 their raw GitHub URL, or hosted on sloyd.ai).
 
+## Regenerating the example workflows
+
+`example_workflows/*.json` are generated, not hand-edited. A workflow's
+`widgets_values` is a positional array, so adding or reordering a single node input
+silently shifts every later value (a stale example would read a timeout as an image
+size, for instance). After changing any node's inputs, run:
+
+```bash
+PYTHONPATH=/path/to/ComfyUI /path/to/ComfyUI/.venv/bin/python \
+  scripts/generate_example_workflows.py
+```
+
+ComfyUI must be on the path: without it the 3D nodes degrade `model_3d` from
+`FILE_3D_GLB` to a plain `STRING`, and the script refuses to emit examples that
+could not connect to Preview 3D. It also self-checks widget counts and fails if any
+example would ship `control after generate: randomize`.
+
 ## Releasing a version
 
 `version` in `pyproject.toml` is the release number and uses semver:
@@ -79,6 +96,6 @@ These are Sloyd API behaviours the pack works around. Revisit when the API chang
 | `/jobs/retexture` with `textureResolution: "auto"` returns a GLB with UVs but no texture images, so the model renders grey. Reproducer: source `su5hqeb6` → job `llu2b460` (auto, 0 textures) vs `b3pppweo` (2k, 3 textures). | `auto` removed from the Retexture node; default is `2k`. |
 | Skybox results are not published at `jobs/{id}.glb`; the panorama URL is inside the job response at `flatBoxData.panoramaUrl`. | Skybox nodes read `panoramaUrl`. |
 | `sketch-to-image` rejects a JSON body with HTTP 500; it needs a multipart file upload. | Sketch to Image posts multipart. |
-| Skyboxes come back 4096×4096 (1:1, not the usual 2:1). As a ComfyUI IMAGE that is a ~201 MB tensor, which makes preview nodes unreliable. | Not yet addressed; an `output_max_size` option is the proposed fix. |
+| Skyboxes come back 4096×4096 (1:1, not the usual 2:1). As a ComfyUI IMAGE that is a ~201 MB tensor, which makes preview nodes unreliable. | Skybox nodes expose `output_max_size` (default 2048) which caps only the in-graph tensor; the saved file stays full resolution. |
 | `multi-image-to-3d` can exceed 600 s. | That node defaults to a 1500 s timeout. |
 | Retexturing a job owned by a different Sloyd account returns HTTP 403 "You can't retexture other users' creations". | Not yet surfaced as a friendly error. |

@@ -80,27 +80,12 @@
           "name": "model_3d",
           "type": "FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
           "link": 1
-        },
-        {
-          "name": "viewport_state",
-          "type": "LOAD_3D",
-          "link": null
-        },
-        {
-          "name": "model_3d_info",
-          "type": "LOAD3D_MODEL_INFO",
-          "link": null
-        },
-        {
-          "name": "camera_info",
-          "type": "LOAD3D_CAMERA",
-          "link": null
         }
       ],
       "outputs": [
         {
           "name": "model_3d",
-          "type": "FILE_3D",
+          "type": "FILE_3D_ANY",
           "links": [],
           "slot_index": 0
         },
@@ -217,27 +202,12 @@
           "name": "model_3d",
           "type": "FILE_3D_GLB,FILE_3D_GLTF,FILE_3D_FBX,FILE_3D_OBJ,FILE_3D_STL,FILE_3D_USDZ,FILE_3D",
           "link": 3
-        },
-        {
-          "name": "viewport_state",
-          "type": "LOAD_3D",
-          "link": null
-        },
-        {
-          "name": "model_3d_info",
-          "type": "LOAD3D_MODEL_INFO",
-          "link": null
-        },
-        {
-          "name": "camera_info",
-          "type": "LOAD3D_CAMERA",
-          "link": null
         }
       ],
       "outputs": [
         {
           "name": "model_3d",
-          "type": "FILE_3D",
+          "type": "FILE_3D_ANY",
           "links": [],
           "slot_index": 0
         },

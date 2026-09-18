@@ -85,6 +85,24 @@ TIMEOUT_INPUT = (
     },
 )
 
+# Sloyd returns skyboxes at 4096x4096. A ComfyUI IMAGE is float32, so that is a ~201MB
+# tensor, and the preview nodes then re-encode it (~12MB PNG, or a ~22MB base64 blob for
+# the 360 viewer). With two previews attached the graph becomes unreliable: one renders
+# and the other silently does not. Capping the tensor keeps previews responsive. The file
+# on disk is always saved at full resolution, so this costs no asset quality.
+OUTPUT_MAX_SIZE_INPUT = (
+    "INT",
+    {
+        "default": 2048,
+        "min": 0,
+        "max": 8192,
+        "step": 256,
+        "tooltip": "Caps the long edge of the IMAGE output to keep previews fast "
+        "(Sloyd returns 4096px skyboxes, which are ~201MB as a tensor). The saved file "
+        "is always full resolution. Set to 0 to pass the full-size image through.",
+    },
+)
+
 
 def output_dir() -> str:
     path = os.path.join(get_output_directory(), OUTPUT_SUBDIR)
@@ -189,8 +207,11 @@ def finish_model_job(client, job_id, endpoint, job, *, prompt=""):
     return (build_model_3d(absolute_path), handle, relative_path, job_id)
 
 
-def finish_skybox_job(client, job_id, endpoint, job, *, prompt=""):
+def finish_skybox_job(client, job_id, endpoint, job, *, prompt="", output_max_size=0):
     """Download a skybox panorama (from flatBoxData.panoramaUrl) and package outputs.
+
+    The file written to disk is always the original, full-resolution bytes.
+    ``output_max_size`` only caps the IMAGE tensor handed to the graph.
 
     Returns (skybox_image, sloyd_job, skybox_path, job_id).
     """
@@ -200,7 +221,7 @@ def finish_skybox_job(client, job_id, endpoint, job, *, prompt=""):
     absolute_path = os.path.join(output_dir(), f"{job_id}_panorama{extension}")
     _atomic_write(absolute_path, content)
     relative_path = to_relative_output_path(absolute_path)
-    logger.info("Sloyd: saved skybox %s", relative_path)
+    logger.info("Sloyd: saved skybox %s (full resolution)", relative_path)
     gen_params = job.get("genParams")
     handle = SloydJob(
         job_id=job_id,
@@ -212,7 +233,15 @@ def finish_skybox_job(client, job_id, endpoint, job, *, prompt=""):
         prompt=prompt,
         gen_params=gen_params if isinstance(gen_params, dict) else {},
     )
-    return (image_bytes_to_tensor(content), handle, relative_path, job_id)
+    tensor = image_bytes_to_tensor(content, max_size=output_max_size)
+    if output_max_size:
+        logger.info(
+            "Sloyd: skybox tensor capped to %dpx long edge for the graph (%dx%d)",
+            output_max_size,
+            tensor.shape[2],
+            tensor.shape[1],
+        )
+    return (tensor, handle, relative_path, job_id)
 
 
 # 2D image endpoints publish the result at jobs/{id}.png (also .jpeg/.webp).

@@ -75,11 +75,38 @@ def tensor_to_png_bytes(image: torch.Tensor) -> bytes:
     return data
 
 
-def image_bytes_to_tensor(data: bytes) -> torch.Tensor:
-    """Decode downloaded image bytes into a single-frame IMAGE tensor."""
-    with Image.open(io.BytesIO(data)) as decoded:
-        decoded.load()
-        pil_image = decoded.convert("RGB")
+def image_bytes_to_tensor(data: bytes, max_size: int = 0) -> torch.Tensor:
+    """Decode downloaded image bytes into a single-frame IMAGE tensor.
+
+    ``max_size`` optionally caps the long edge, preserving aspect ratio. This exists
+    because a ComfyUI IMAGE is float32: a 4096x4096 skybox is a ~201MB tensor, and the
+    preview nodes then re-encode it (a ~12MB PNG, or a ~22MB base64 blob for the 360
+    viewer), which makes previews slow and unreliable. Downscaling the *tensor* keeps
+    the graph responsive; callers still write the original bytes to disk at full
+    resolution, so no asset quality is lost.
+
+    ``max_size`` of 0 (the default) means no downscaling.
+    """
+    # Large panoramas exceed PIL's decompression-bomb guard, which is about untrusted
+    # input; these bytes come from an authenticated Sloyd job we just created.
+    previous_limit = Image.MAX_IMAGE_PIXELS
+    Image.MAX_IMAGE_PIXELS = None
+    try:
+        with Image.open(io.BytesIO(data)) as decoded:
+            decoded.load()
+            pil_image = decoded.convert("RGB")
+    finally:
+        Image.MAX_IMAGE_PIXELS = previous_limit
+
+    if max_size and max(pil_image.size) > max_size:
+        scale = max_size / max(pil_image.size)
+        pil_image = pil_image.resize(
+            (
+                max(1, round(pil_image.width * scale)),
+                max(1, round(pil_image.height * scale)),
+            ),
+            Image.LANCZOS,
+        )
 
     array = np.asarray(pil_image).astype(np.float32) / 255.0
     return torch.from_numpy(array).unsqueeze(0)

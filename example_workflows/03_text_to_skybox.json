@@ -11,7 +11,7 @@
       ],
       "size": [
         360,
-        240
+        260
       ],
       "flags": {},
       "order": 0,
@@ -53,6 +53,7 @@
         0,
         "fixed",
         "",
+        2048,
         900
       ]
     },
@@ -77,14 +78,7 @@
           "link": 1
         }
       ],
-      "outputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "links": [],
-          "slot_index": 0
-        }
-      ],
+      "outputs": [],
       "properties": {
         "Node name for S&R": "PreviewImage"
       },
@@ -104,7 +98,7 @@
   "groups": [],
   "config": {},
   "extra": {
-    "sloyd_note": "Generate a 360 equirectangular skybox. Swap Preview Image for a 360 viewer (e.g. ComfyUI_preview360panorama) to look around inside it."
+    "sloyd_note": "Generate a 360 equirectangular skybox. The saved file is full resolution; output_max_size only caps the in-graph image so previews stay fast. Swap Preview Image for a 360 viewer (e.g. ComfyUI_preview360panorama) to look around."
   },
   "version": 0.4
 }
