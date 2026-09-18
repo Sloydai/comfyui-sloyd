@@ -91,7 +91,16 @@ x-client-secret: <secret>
 
 ### 2. Give them to ComfyUI
 
-Pick one. They resolve in this order:
+Easiest: the **Settings panel**. Open **Settings → Sloyd**. You get:
+
+- **Setup → Get an API key & buy credits** — a link straight to the dashboard.
+- **Setup → Credential status** — shows whether credentials are active and where
+  they came from.
+- **Credentials → Client ID** and **Client Secret** — paste both. The secret is
+  sent to the ComfyUI backend, written to `sloyd_config.json`, and the field is
+  then cleared, so it never lives in the browser or in a saved workflow.
+
+Alternatives, resolved in this order (the first that is set wins):
 
 **Environment variables** — best for Docker, headless, and cloud runners:
 
@@ -100,34 +109,26 @@ export SLOYD_CLIENT_ID="sok_live_..."
 export SLOYD_CLIENT_SECRET="..."
 ```
 
-**Settings panel** — easiest for a local install. Open
-**Settings → Sloyd → Credentials**, paste both values. The secret goes to the
-ComfyUI backend, is written to `sloyd_config.json`, and the field then clears.
-
 **Config file** — create `sloyd_config.json` in this folder:
 
 ```json
 {
   "client_id": "sok_live_...",
-  "client_secret": "...",
-  "profiles": {
-    "staging": { "client_id": "sok_test_...", "client_secret": "..." }
-  }
+  "client_secret": "..."
 }
 ```
 
 The file is written `0600` and is listed in both `.gitignore` and `.comfyignore`.
 
-Once configured, leave the `sloyd_credentials` input on the generation nodes
-unconnected and it resolves automatically. The **Sloyd: Credentials** node is only
-needed to switch between named profiles in a single workflow.
+Once configured, the generation nodes resolve credentials automatically, nothing to
+wire on the graph.
 
 ## Why the secret is never a node widget
 
 ComfyUI serialises every widget value into the saved workflow JSON *and* into the
 metadata of generated files. A secret typed into a widget leaks the moment you
 share a workflow, post a screenshot, or hand the graph to a teammate. So these
-nodes resolve credentials server-side and expose only a profile *name* on the graph.
+nodes resolve credentials server-side; nothing sensitive ever touches the graph.
 
 > **Deploying beyond localhost?** The `/sloyd/credentials` route inherits whatever
 > access control your ComfyUI server has, which by default is none. On an instance

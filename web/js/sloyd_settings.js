@@ -1,24 +1,31 @@
 /**
- * Adds the Sloyd credential fields to ComfyUI's Settings panel.
+ * Sloyd credential setup in ComfyUI's Settings panel (Settings -> Sloyd).
  *
- * The secret is POSTed to the Python backend, which writes it to sloyd_config.json,
- * and the field is then cleared. It is deliberately never kept in the frontend's
- * persisted settings, never placed on a node widget, and never returned by the
- * status route -- so it cannot ride along in a shared workflow or in the metadata
- * of a generated file.
+ * Onboarding + storage in one place:
+ *   - a link to api-dashboard.sloyd.ai to generate a key and buy credits
+ *   - Client ID and Client Secret fields
+ *   - a read-only status line showing whether credentials are active
  *
- * Everything here is wrapped defensively: if a future frontend release changes the
- * settings API, the extension logs and gives up rather than breaking node loading.
- * Credentials can always be supplied via SLOYD_CLIENT_ID / SLOYD_CLIENT_SECRET or
- * by editing sloyd_config.json directly.
+ * The secret is POSTed to the Python backend, written to sloyd_config.json, and the
+ * field is then cleared. It is never kept in frontend-persisted settings, never put
+ * on a node, and never returned by the status route, so it cannot leak through a
+ * shared workflow or a generated file's metadata.
+ *
+ * Everything is defensive: if a future frontend changes the settings API, the
+ * extension logs and gives up rather than blocking node loading. Users can always
+ * fall back to the SLOYD_CLIENT_ID / SLOYD_CLIENT_SECRET env vars or editing
+ * sloyd_config.json directly.
  */
 
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-const SETTINGS_CATEGORY = ["Sloyd", "Credentials"];
+const DASHBOARD_URL = "https://api-dashboard.sloyd.ai/";
+
+const ID_HELP = "Sloyd.Setup";
 const ID_CLIENT_ID = "Sloyd.ClientId";
 const ID_CLIENT_SECRET = "Sloyd.ClientSecret";
+const ID_STATUS = "Sloyd.Status";
 
 let pendingClientId = "";
 
@@ -47,48 +54,65 @@ async function saveCredentials(clientId, clientSecret) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
   });
-
   let payload = {};
   try {
     payload = await response.json();
   } catch (err) {
     /* non-JSON error body */
   }
-
   if (!response.ok) {
     throw new Error(payload.error || `Save failed with HTTP ${response.status}`);
   }
   return payload;
 }
 
-/** Clear the secret field so it is not persisted client-side. */
-function clearSecretSetting() {
+function setSetting(id, value) {
   try {
-    app.ui.settings.setSettingValue(ID_CLIENT_SECRET, "");
+    app.ui.settings.setSettingValue(id, value);
   } catch (err) {
-    console.warn("[Sloyd] Could not clear the secret field:", err);
+    /* settings not ready yet */
   }
 }
 
-async function trySave() {
-  const clientId = (pendingClientId || "").trim();
-  let secret = "";
+function getSetting(id) {
   try {
-    secret = (app.ui.settings.getSettingValue(ID_CLIENT_SECRET) || "").trim();
+    return (app.ui.settings.getSettingValue(id) || "").trim();
   } catch (err) {
-    return;
+    return "";
   }
+}
 
-  // Wait until both halves are present. Sloyd needs the pair on every request.
-  if (!clientId || !secret) return;
+function refreshStatusLine(status) {
+  if (!status) return;
+  let line;
+  if (status.configured) {
+    const src =
+      status.source === "environment"
+        ? "environment variables"
+        : status.source === "default"
+          ? "config file"
+          : status.source;
+    line = `Active (${status.client_id} via ${src})`;
+  } else {
+    line = "Not configured - paste your Client ID and Secret below.";
+  }
+  setSetting(ID_STATUS, line);
+}
+
+/** Persist once both halves are present, then clear the secret field. */
+async function trySave() {
+  const clientId = (pendingClientId || getSetting(ID_CLIENT_ID) || "").trim();
+  const secret = getSetting(ID_CLIENT_SECRET);
+  if (!clientId || !secret) return; // Sloyd needs the pair on every request.
 
   try {
     const status = await saveCredentials(clientId, secret);
-    clearSecretSetting();
+    setSetting(ID_CLIENT_SECRET, ""); // never keep the secret client-side
+    refreshStatusLine(status);
     toast(
       "success",
       "Sloyd credentials saved",
-      `Stored for ${status.client_id || clientId}. The secret is kept on the server, not in your workflows.`
+      `Stored for ${status.client_id || clientId}. The secret stays on the server, not in your workflows.`
     );
   } catch (err) {
     toast("error", "Sloyd credentials not saved", String(err.message || err));
@@ -100,55 +124,63 @@ app.registerExtension({
 
   settings: [
     {
+      id: ID_HELP,
+      category: ["Sloyd", "Setup", "Dashboard"],
+      name: "Get an API key & buy credits",
+      tooltip:
+        "Opens the Sloyd API Dashboard. Sign in, open API Keys, set up billing " +
+        "(prepaid credits), then Generate Key. Copy the Client Secret - it is shown only once.",
+      type: "url",
+      defaultValue: DASHBOARD_URL,
+    },
+    {
+      id: ID_STATUS,
+      category: ["Sloyd", "Setup", "Status"],
+      name: "Credential status",
+      tooltip: "Whether Sloyd credentials are currently active, and where they came from.",
+      type: "text",
+      defaultValue: "Checking...",
+      attrs: { readonly: true, disabled: true },
+    },
+    {
       id: ID_CLIENT_ID,
-      category: [...SETTINGS_CATEGORY, "Client ID"],
+      category: ["Sloyd", "Credentials", "Client ID"],
       name: "Client ID",
       tooltip:
-        "The sok_live_... value from the Sloyd API Dashboard (API Keys). Safe to store; it is not the secret.",
+        "The sok_live_... value from the Sloyd API Dashboard (API Keys). Safe to store; not the secret.",
       type: "text",
       defaultValue: "",
-      onChange: (value) => {
-        pendingClientId = value || "";
-        void trySave();
+      onChange: async (value) => {
+        pendingClientId = (value || "").trim();
+        await trySave();
       },
     },
     {
       id: ID_CLIENT_SECRET,
-      category: [...SETTINGS_CATEGORY, "Client Secret"],
+      category: ["Sloyd", "Credentials", "Client Secret"],
       name: "Client Secret",
       tooltip:
-        "Shown only once when you generate the key. Paste it here; it is sent to the ComfyUI backend, written to sloyd_config.json, and this field is then cleared. It never enters a workflow.",
+        "Shown only once when you generate the key. Paste it here: it is sent to the " +
+        "ComfyUI backend, written to sloyd_config.json, and this field is then cleared. " +
+        "It never enters a workflow.",
       type: "text",
       attrs: { type: "password" },
       defaultValue: "",
-      onChange: () => {
-        void trySave();
+      onChange: async () => {
+        await trySave();
       },
     },
   ],
 
   async setup() {
     const status = await readStatus();
-    if (!status) return;
-
-    if (status.configured) {
-      console.log(
-        `[Sloyd] Credentials active from ${status.source} (${status.client_id}).`
-      );
-      // Reflect the stored id so the panel is not misleadingly blank, but only
-      // when the frontend has nothing of its own.
-      try {
-        const current = (app.ui.settings.getSettingValue(ID_CLIENT_ID) || "").trim();
-        if (!current && status.source !== "environment") {
-          pendingClientId = "";
-        }
-      } catch (err) {
-        /* settings not ready */
-      }
+    refreshStatusLine(status);
+    if (status?.configured) {
+      console.log(`[Sloyd] Credentials active from ${status.source} (${status.client_id}).`);
     } else {
       console.log(
-        "[Sloyd] No credentials configured. Settings -> Sloyd -> Credentials, " +
-          "or set SLOYD_CLIENT_ID and SLOYD_CLIENT_SECRET."
+        "[Sloyd] No credentials yet. Settings -> Sloyd: open the dashboard link to get a key, " +
+          "then paste Client ID + Secret. (Or set SLOYD_CLIENT_ID / SLOYD_CLIENT_SECRET.)"
       );
     }
   },
