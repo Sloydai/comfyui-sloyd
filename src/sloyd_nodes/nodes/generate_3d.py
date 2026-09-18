@@ -1,9 +1,10 @@
 """Text-to-3D and Image-to-3D generation nodes.
 
-Both emit the same output triple:
+Both emit the same outputs:
 
+    MODEL_3D     (FILE_3D_GLB) plugs straight into Preview 3D (Advanced) / Save 3D
     SLOYD_JOB    typed handle, chains into Retexture / Split to Parts
-    STRING       model path relative to ComfyUI/output, wires into Preview3D
+    STRING       model path relative to ComfyUI/output, for Save Asset / external use
     STRING       raw job id, for logging or an external pipeline
 """
 
@@ -21,6 +22,7 @@ from .base import (
     TEXTURE_RESOLUTIONS,
     TIMEOUT_INPUT,
     TOPOLOGIES,
+    build_model_3d,
     clamp_face_count,
     get_client,
     output_dir,
@@ -28,8 +30,12 @@ from .base import (
     validate_prompt,
 )
 
-RETURN_TYPES = ("SLOYD_JOB", "STRING", "STRING")
-RETURN_NAMES = ("sloyd_job", "model_path", "job_id")
+# model_3d is the FILE_3D_GLB socket that current ComfyUI 3D nodes accept. Falls back
+# to a plain string on older builds without the File3D type (see base.MODEL_3D_TYPE).
+from .base import MODEL_3D_TYPE
+
+RETURN_TYPES = (MODEL_3D_TYPE, "SLOYD_JOB", "STRING", "STRING")
+RETURN_NAMES = ("model_3d", "sloyd_job", "model_path", "job_id")
 
 
 def _finish(client, job_id: str, endpoint: str, credentials, prompt: str, job: dict):
@@ -49,7 +55,8 @@ def _finish(client, job_id: str, endpoint: str, credentials, prompt: str, job: d
         prompt=prompt,
         gen_params=gen_params if isinstance(gen_params, dict) else {},
     )
-    return (sloyd_job, relative_path, job_id)
+    model_3d = build_model_3d(absolute_path)
+    return (model_3d, sloyd_job, relative_path, job_id)
 
 
 class SloydTextTo3D:

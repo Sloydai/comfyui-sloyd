@@ -10,6 +10,29 @@ from ..client import SloydClient
 from ..credentials import SloydCredentials
 from ..credentials import resolve as resolve_credentials
 
+# ComfyUI's current 3D nodes accept a File3D object over the FILE_3D_GLB socket.
+# On builds that have it, generation nodes output that directly so model_3d connects
+# to Preview 3D (Advanced) / Save 3D with no adapter node. On older builds we fall
+# back to a plain path STRING so the pack still loads and Save Asset still works.
+try:
+    from comfy_api.latest import Types as _ComfyTypes  # type: ignore
+
+    _File3D = _ComfyTypes.File3D
+    MODEL_3D_TYPE = "FILE_3D_GLB"
+except Exception:  # pragma: no cover - older ComfyUI
+    _File3D = None
+    MODEL_3D_TYPE = "STRING"
+
+
+def build_model_3d(absolute_path: str):
+    """Wrap a GLB path as the model_3d output value for the current ComfyUI.
+
+    Returns a File3D object where supported, else the path string (older builds).
+    """
+    if _File3D is not None:
+        return _File3D(absolute_path, file_format="glb")
+    return to_relative_output_path(absolute_path)
+
 # Generated assets land in ComfyUI/output/sloyd/. Preview3D requires the model file
 # to sit under the output directory and takes a path relative to it.
 OUTPUT_SUBDIR = "sloyd"

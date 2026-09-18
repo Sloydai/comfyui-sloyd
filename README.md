@@ -6,29 +6,26 @@ Generate 3D models and 360° skyboxes with the [Sloyd API](https://api-dashboard
 
 | Node | Sloyd endpoint | Outputs |
 | --- | --- | --- |
-| **Sloyd: Text to 3D** | `POST /jobs/text-to-3d` | `SLOYD_JOB`, `model_path`, `job_id` |
-| **Sloyd: Image to 3D** | `POST /jobs/image-to-3d` | `SLOYD_JOB`, `model_path`, `job_id` |
+| **Sloyd: Text to 3D** | `POST /jobs/text-to-3d` | `model_3d`, `SLOYD_JOB`, `model_path`, `job_id` |
+| **Sloyd: Image to 3D** | `POST /jobs/image-to-3d` | `model_3d`, `SLOYD_JOB`, `model_path`, `job_id` |
 | **Sloyd: Skybox from Image** | `POST /jobs/image-upload` → `POST /jobs/skybox-from-image` | `IMAGE`, `SLOYD_JOB`, `skybox_path`, `job_id` |
 | **Sloyd: Credentials** | — | `SLOYD_CREDENTIALS` |
 | **Sloyd: Save Asset** | — | `saved_path` |
-| **Sloyd: Model to 3D File** | — | `model_3d` (for Preview 3D / Save 3D) |
 | **Sloyd: Job Info** | — | `job_id`, `kind`, `asset_path`, `gen_params` |
 
 Generated files land in `ComfyUI/output/sloyd/`.
 
 ### Wiring
 
-To view a generated model, convert it to a `model_3d` object with **Sloyd: Model to
-3D File**, then feed that into **Preview 3D (Advanced)** or a **Save 3D** node:
+The `model_3d` output plugs straight into **Preview 3D (Advanced)** to view it, or a
+**Save 3D** node:
 
 ```
-Sloyd: Text to 3D ──model_path──> Sloyd: Model to 3D File ──model_3d──> Preview 3D (Advanced)
+Sloyd: Text to 3D ──model_3d──> Preview 3D (Advanced)
 ```
 
-(Current ComfyUI 3D nodes accept a `model_3d` object, not a path string, so the
-bridge node is what makes the connection. On older ComfyUI builds without the File3D
-type, the bridge node is hidden; use **Sloyd: Save Asset** with the `model_path`
-output instead.)
+(On older ComfyUI builds without the File3D type, `model_3d` falls back to a path
+string; use **Sloyd: Save Asset** with the `model_path` output to keep the file.)
 
 `skybox` is a normal ComfyUI `IMAGE` (equirectangular), so it flows into
 `SaveImage`, upscalers, and community 360° viewers such as
