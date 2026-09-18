@@ -39,6 +39,7 @@ OUTPUT_SUBDIR = "sloyd"
 
 CATEGORY_3D = "Sloyd/3D"
 CATEGORY_ENV = "Sloyd/Environments"
+CATEGORY_2D = "Sloyd/2D"
 CATEGORY_UTIL = "Sloyd/Utility"
 
 TEXTURE_RESOLUTIONS = ["auto", "128", "256", "512", "1k", "2k", "4k", "none"]
@@ -124,3 +125,118 @@ def optional(value: Any) -> Any:
     if isinstance(value, str) and not value.strip():
         return None
     return value
+
+
+def job_id_from_input(sloyd_job, job_id: str, node_label: str) -> str:
+    """Resolve a source job id from either a SLOYD_JOB handle or a raw string.
+
+    Model tools (retexture, split, skybox-edit, image-edit) operate on a job the
+    caller already owns. Accepting both lets a user wire the upstream node's
+    sloyd_job output *or* paste an id by hand.
+    """
+    if sloyd_job is not None:
+        jid = getattr(sloyd_job, "job_id", None)
+        if jid:
+            return str(jid)
+    jid = (job_id or "").strip()
+    if jid:
+        return jid
+    raise ValueError(
+        f"{node_label} needs a source job. Connect 'sloyd_job' from an upstream Sloyd "
+        "node, or paste a job_id."
+    )
+
+
+# --- shared job completion --------------------------------------------------
+
+from ..client import GLB_EXTENSIONS, skybox_panorama_url  # noqa: E402
+from ..images import image_bytes_to_tensor  # noqa: E402
+from ..types import (  # noqa: E402
+    KIND_IMAGE,
+    KIND_MODEL,
+    KIND_SKYBOX,
+    SloydJob,
+)
+
+
+def finish_model_job(client, job_id, endpoint, job, *, prompt=""):
+    """Download a GLB result and package the standard 3D outputs.
+
+    Returns (model_3d, sloyd_job, model_path, job_id).
+    """
+    absolute_path = client.download_asset_to_file(job_id, output_dir(), GLB_EXTENSIONS)
+    relative_path = to_relative_output_path(absolute_path)
+    logger.info("Sloyd: saved %s", relative_path)
+    gen_params = job.get("genParams")
+    handle = SloydJob(
+        job_id=job_id,
+        kind=KIND_MODEL,
+        credentials=client.credentials,
+        endpoint=endpoint,
+        absolute_path=absolute_path,
+        relative_path=relative_path,
+        prompt=prompt,
+        gen_params=gen_params if isinstance(gen_params, dict) else {},
+    )
+    return (build_model_3d(absolute_path), handle, relative_path, job_id)
+
+
+def finish_skybox_job(client, job_id, endpoint, job, *, prompt=""):
+    """Download a skybox panorama (from flatBoxData.panoramaUrl) and package outputs.
+
+    Returns (skybox_image, sloyd_job, skybox_path, job_id).
+    """
+    panorama_url = skybox_panorama_url(job)
+    content = client.download_url(panorama_url)
+    extension = os.path.splitext(panorama_url.split("?")[0])[1] or ".webp"
+    absolute_path = os.path.join(output_dir(), f"{job_id}_panorama{extension}")
+    _atomic_write(absolute_path, content)
+    relative_path = to_relative_output_path(absolute_path)
+    logger.info("Sloyd: saved skybox %s", relative_path)
+    gen_params = job.get("genParams")
+    handle = SloydJob(
+        job_id=job_id,
+        kind=KIND_SKYBOX,
+        credentials=client.credentials,
+        endpoint=endpoint,
+        absolute_path=absolute_path,
+        relative_path=relative_path,
+        prompt=prompt,
+        gen_params=gen_params if isinstance(gen_params, dict) else {},
+    )
+    return (image_bytes_to_tensor(content), handle, relative_path, job_id)
+
+
+# 2D image endpoints publish the result at jobs/{id}.png (also .jpeg/.webp).
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def finish_image_job(client, job_id, endpoint, job, *, prompt=""):
+    """Download a 2D image result and package outputs.
+
+    Returns (image, sloyd_job, image_path, job_id).
+    """
+    content, extension = client.download_asset(job_id, IMAGE_EXTENSIONS)
+    absolute_path = os.path.join(output_dir(), f"{job_id}{extension}")
+    _atomic_write(absolute_path, content)
+    relative_path = to_relative_output_path(absolute_path)
+    logger.info("Sloyd: saved image %s", relative_path)
+    gen_params = job.get("genParams")
+    handle = SloydJob(
+        job_id=job_id,
+        kind=KIND_IMAGE,
+        credentials=client.credentials,
+        endpoint=endpoint,
+        absolute_path=absolute_path,
+        relative_path=relative_path,
+        prompt=prompt,
+        gen_params=gen_params if isinstance(gen_params, dict) else {},
+    )
+    return (image_bytes_to_tensor(content), handle, relative_path, job_id)
+
+
+def _atomic_write(path: str, content: bytes) -> None:
+    tmp = f"{path}.part"
+    with open(tmp, "wb") as handle:
+        handle.write(content)
+    os.replace(tmp, path)

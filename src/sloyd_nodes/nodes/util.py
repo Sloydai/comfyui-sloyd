@@ -1,4 +1,9 @@
-"""Utility nodes: credential selection, saving, and job inspection."""
+"""Utility node: Save Asset.
+
+Every generation node already auto-saves its result under ComfyUI/output/sloyd/ and
+outputs a ready-to-view type (model_3d / IMAGE). This node is the one optional extra:
+it copies a generated asset to a filename and location you choose.
+"""
 
 from __future__ import annotations
 
@@ -7,56 +12,10 @@ import re
 import shutil
 
 from .._compat import get_output_directory, logger
-from ..credentials import DEFAULT_PROFILE, available_profiles
-from ..credentials import resolve as resolve_credentials
 from ..types import SloydJob
 from .base import CATEGORY_UTIL, to_relative_output_path
 
 _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._/-]+")
-
-
-class SloydCredentialsNode:
-    """Selects a named credential profile.
-
-    Only the profile *name* is a widget value. The client id and secret are read
-    server-side from sloyd_config.json, so nothing sensitive is serialised into the
-    workflow JSON or into the metadata of generated files.
-
-    Most users never need this node: leave the credentials input on the generation
-    nodes unconnected and they resolve the default automatically.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        profiles = available_profiles()
-        return {
-            "required": {
-                "profile": (
-                    profiles,
-                    {
-                        "default": DEFAULT_PROFILE,
-                        "tooltip": (
-                            "Named profile from sloyd_config.json. 'default' falls back to the "
-                            "SLOYD_CLIENT_ID / SLOYD_CLIENT_SECRET environment variables."
-                        ),
-                    },
-                ),
-            }
-        }
-
-    RETURN_TYPES = ("SLOYD_CREDENTIALS",)
-    RETURN_NAMES = ("sloyd_credentials",)
-    FUNCTION = "load"
-    CATEGORY = CATEGORY_UTIL
-    DESCRIPTION = (
-        "Select a named Sloyd credential profile. Only needed when using more than "
-        "one Sloyd account in a single workflow."
-    )
-
-    def load(self, profile: str):
-        credentials = resolve_credentials(profile)
-        logger.info("Sloyd: resolved profile %s (%s)", credentials.profile, credentials.redacted_id)
-        return (credentials,)
 
 
 class SloydSaveAsset:
@@ -71,10 +30,8 @@ class SloydSaveAsset:
                     "STRING",
                     {
                         "default": "sloyd/model",
-                        "tooltip": (
-                            "Output name relative to ComfyUI/output, without an extension. "
-                            "A counter is appended when the name already exists."
-                        ),
+                        "tooltip": "Output name relative to ComfyUI/output, without an extension. "
+                        "A counter is appended when the name already exists.",
                     },
                 ),
             }
@@ -113,27 +70,3 @@ class SloydSaveAsset:
         relative = to_relative_output_path(destination)
         logger.info("Sloyd: saved asset to %s", relative)
         return (relative,)
-
-
-class SloydJobInfo:
-    """Unpacks a SLOYD_JOB into plain strings for debugging or downstream text nodes."""
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"sloyd_job": ("SLOYD_JOB",)}}
-
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("job_id", "kind", "asset_path", "gen_params")
-    FUNCTION = "info"
-    CATEGORY = CATEGORY_UTIL
-    DESCRIPTION = "Read the job id, kind, local path, and applied parameters from a Sloyd job."
-
-    def info(self, sloyd_job: SloydJob):
-        import json
-
-        return (
-            sloyd_job.job_id,
-            sloyd_job.kind,
-            sloyd_job.relative_path or "",
-            json.dumps(sloyd_job.gen_params, indent=2, sort_keys=True),
-        )

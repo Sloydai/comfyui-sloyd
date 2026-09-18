@@ -1,39 +1,90 @@
-"""Skybox from Image.
+"""360-degree skybox (worldbox) nodes: from text, from image, and edit.
 
-Two Sloyd calls behind one node:
-
-    POST /jobs/image-upload        -> imageJobId (free, 0 credits)
-    POST /jobs/skybox-from-image   -> jobId for the 360 environment
-
-The result is a 2D equirectangular image, so it is returned as a normal ComfyUI
-IMAGE. That lets it flow into SaveImage, upscalers, and the community 360 preview
-nodes without a Sloyd-specific viewer.
+All three return the equirectangular panorama as a normal ComfyUI IMAGE (from
+flatBoxData.panoramaUrl in the job response), plus a SLOYD_JOB handle and the saved
+path. The IMAGE flows into Save Image, upscalers, and community 360 viewers.
 """
 
 from __future__ import annotations
 
-import os
-
 import torch
 
 from .._compat import logger
-from ..client import skybox_panorama_url
-from ..images import image_bytes_to_tensor, tensor_to_png_bytes
-from ..types import KIND_SKYBOX, SloydJob
+from ..images import tensor_to_png_bytes
 from .base import (
     CATEGORY_ENV,
     SEED_INPUT,
     TIMEOUT_INPUT,
+    finish_skybox_job,
     get_client,
+    job_id_from_input,
     optional,
-    output_dir,
-    to_relative_output_path,
     validate_prompt,
 )
 
+RETURN_TYPES = ("IMAGE", "SLOYD_JOB", "STRING", "STRING")
+RETURN_NAMES = ("skybox", "sloyd_job", "skybox_path", "job_id")
+
+_GEN_STYLE_INPUT = (
+    "STRING",
+    {
+        "default": "",
+        "tooltip": "Optional Sloyd generation style ID. Blank uses the default. "
+        "Valid IDs are listed under Generation Styles in the Sloyd API docs.",
+    },
+)
+
+
+class SloydTextToSkybox:
+    """POST /jobs/text-to-worldbox"""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "a neon cyberpunk alley at night",
+                        "tooltip": "Describe the 360-degree environment. Up to 4096 characters.",
+                    },
+                ),
+                "seed": SEED_INPUT,
+            },
+            "optional": {
+                "gen_style_id": _GEN_STYLE_INPUT,
+                "timeout_seconds": TIMEOUT_INPUT,
+            },
+        }
+
+    RETURN_TYPES = RETURN_TYPES
+    RETURN_NAMES = RETURN_NAMES
+    FUNCTION = "generate"
+    CATEGORY = CATEGORY_ENV
+    DESCRIPTION = "Generate a 360-degree equirectangular skybox from a text prompt using the Sloyd API."
+
+    def generate(
+        self,
+        prompt: str,
+        seed: int,
+        gen_style_id: str = "",
+        sloyd_credentials=None,
+        timeout_seconds: int = 900,
+    ):
+        cleaned_prompt = validate_prompt(prompt, required=True)
+        with get_client(sloyd_credentials) as client:
+            job_id = client.create_job_json(
+                "text-to-worldbox",
+                {"prompt": cleaned_prompt, "genStyleId": optional(gen_style_id)},
+            )
+            logger.info("Sloyd text-to-worldbox job %s started", job_id)
+            job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd skybox")
+            return finish_skybox_job(client, job_id, "text-to-worldbox", job, prompt=cleaned_prompt)
+
 
 class SloydSkyboxFromImage:
-    """POST /jobs/skybox-from-image"""
+    """POST /jobs/image-upload -> POST /jobs/skybox-from-image"""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -41,44 +92,30 @@ class SloydSkyboxFromImage:
             "required": {
                 "image": (
                     "IMAGE",
-                    {"tooltip": "Source image to expand into a 360 environment. First frame of a batch only."},
+                    {"tooltip": "Source image to expand into a 360 environment. First frame only."},
                 ),
                 "prompt": (
                     "STRING",
                     {
                         "multiline": True,
                         "default": "",
-                        "tooltip": (
-                            "Optional. Instructions for expanding the source into a full "
-                            "360-degree environment. Leave blank to let Sloyd decide."
-                        ),
+                        "tooltip": "Optional. How to expand the source into a full 360-degree "
+                        "environment. Blank lets Sloyd decide.",
                     },
                 ),
                 "seed": SEED_INPUT,
             },
             "optional": {
-                "gen_style_id": (
-                    "STRING",
-                    {
-                        "default": "",
-                        "tooltip": (
-                            "Optional Sloyd generation style ID. Leave blank for the default. "
-                            "Valid IDs are listed under Generation Styles in the Sloyd API docs."
-                        ),
-                    },
-                ),
-                "sloyd_credentials": ("SLOYD_CREDENTIALS",),
+                "gen_style_id": _GEN_STYLE_INPUT,
                 "timeout_seconds": TIMEOUT_INPUT,
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "SLOYD_JOB", "STRING", "STRING")
-    RETURN_NAMES = ("skybox", "sloyd_job", "skybox_path", "job_id")
+    RETURN_TYPES = RETURN_TYPES
+    RETURN_NAMES = RETURN_NAMES
     FUNCTION = "generate"
     CATEGORY = CATEGORY_ENV
-    DESCRIPTION = (
-        "Expand an image into a 360-degree equirectangular skybox using the Sloyd API."
-    )
+    DESCRIPTION = "Expand an image into a 360-degree equirectangular skybox using the Sloyd API."
 
     def generate(
         self,
@@ -91,11 +128,9 @@ class SloydSkyboxFromImage:
     ):
         cleaned_prompt = validate_prompt(prompt, required=False)
         image_bytes = tensor_to_png_bytes(image)
-
         with get_client(sloyd_credentials) as client:
             image_job_id = client.upload_image(image_bytes, "skybox_source.png")
             logger.info("Sloyd: uploaded skybox source as image job %s", image_job_id)
-
             job_id = client.create_job_json(
                 "skybox-from-image",
                 {
@@ -106,32 +141,64 @@ class SloydSkyboxFromImage:
             )
             logger.info("Sloyd skybox-from-image job %s started", job_id)
             job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd skybox")
+            return finish_skybox_job(client, job_id, "skybox-from-image", job, prompt=cleaned_prompt)
 
-            # Skyboxes return their result inside the job JSON, not at a
-            # jobs/{id}.glb-style URL. The equirectangular panorama is a WEBP.
-            panorama_url = skybox_panorama_url(job)
-            content = client.download_url(panorama_url)
-            extension = os.path.splitext(panorama_url.split("?")[0])[1] or ".webp"
 
-            directory = output_dir()
-            absolute_path = os.path.join(directory, f"{job_id}_panorama{extension}")
-            with open(absolute_path, "wb") as handle:
-                handle.write(content)
-            relative_path = to_relative_output_path(absolute_path)
-            logger.info("Sloyd: saved skybox %s", relative_path)
+class SloydEditSkybox:
+    """POST /jobs/skybox-edit"""
 
-            skybox_tensor = image_bytes_to_tensor(content)
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "add a full moon",
+                        "tooltip": "How to edit the existing skybox. Up to 4096 characters.",
+                    },
+                ),
+                "seed": SEED_INPUT,
+            },
+            "optional": {
+                "sloyd_job": ("SLOYD_JOB", {"tooltip": "Source skybox from an upstream Sloyd skybox node."}),
+                "job_id": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "tooltip": "Alternatively, paste a Sloyd skybox job id you own. "
+                        "Ignored if sloyd_job is connected.",
+                    },
+                ),
+                "gen_style_id": _GEN_STYLE_INPUT,
+                "timeout_seconds": TIMEOUT_INPUT,
+            },
+        }
 
-            gen_params = job.get("genParams")
-            sloyd_job = SloydJob(
-                job_id=job_id,
-                kind=KIND_SKYBOX,
-                credentials=client.credentials,
-                endpoint="skybox-from-image",
-                absolute_path=absolute_path,
-                relative_path=relative_path,
-                prompt=cleaned_prompt,
-                gen_params=gen_params if isinstance(gen_params, dict) else {},
+    RETURN_TYPES = RETURN_TYPES
+    RETURN_NAMES = RETURN_NAMES
+    FUNCTION = "run"
+    CATEGORY = CATEGORY_ENV
+    DESCRIPTION = "Edit an existing Sloyd skybox with a new prompt."
+
+    def run(
+        self,
+        prompt: str,
+        seed: int,
+        sloyd_job=None,
+        job_id: str = "",
+        gen_style_id: str = "",
+        sloyd_credentials=None,
+        timeout_seconds: int = 900,
+    ):
+        cleaned_prompt = validate_prompt(prompt, required=True)
+        source_id = job_id_from_input(sloyd_job, job_id, "Sloyd: Edit Skybox")
+        with get_client(sloyd_credentials) as client:
+            new_id = client.create_job_json(
+                "skybox-edit",
+                {"jobId": source_id, "prompt": cleaned_prompt, "genStyleId": optional(gen_style_id)},
             )
-
-        return (skybox_tensor, sloyd_job, relative_path, job_id)
+            logger.info("Sloyd skybox-edit job %s started (from %s)", new_id, source_id)
+            job = client.wait_for_job(new_id, float(timeout_seconds), "Sloyd skybox edit")
+            return finish_skybox_job(client, new_id, "skybox-edit", job, prompt=cleaned_prompt)

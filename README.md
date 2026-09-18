@@ -4,41 +4,73 @@ Generate 3D models and 360° skyboxes with the [Sloyd API](https://api-dashboard
 
 ## Nodes
 
+Covers every generation endpoint currently live on the Sloyd API.
+
+### 3D models (`Sloyd/3D`)
+
 | Node | Sloyd endpoint | Outputs |
 | --- | --- | --- |
-| **Sloyd: Text to 3D** | `POST /jobs/text-to-3d` | `model_3d`, `SLOYD_JOB`, `model_path`, `job_id` |
-| **Sloyd: Image to 3D** | `POST /jobs/image-to-3d` | `model_3d`, `SLOYD_JOB`, `model_path`, `job_id` |
-| **Sloyd: Skybox from Image** | `POST /jobs/image-upload` → `POST /jobs/skybox-from-image` | `IMAGE`, `SLOYD_JOB`, `skybox_path`, `job_id` |
-| **Sloyd: Credentials** | — | `SLOYD_CREDENTIALS` |
-| **Sloyd: Save Asset** | — | `saved_path` |
-| **Sloyd: Job Info** | — | `job_id`, `kind`, `asset_path`, `gen_params` |
+| **Sloyd: Text to 3D** | `POST /jobs/text-to-3d` | `model_3d`, `sloyd_job`, `model_path`, `job_id` |
+| **Sloyd: Image to 3D** | `POST /jobs/image-to-3d` | `model_3d`, `sloyd_job`, `model_path`, `job_id` |
+| **Sloyd: Multi-Image to 3D** | `POST /jobs/multi-image-to-3d` | `model_3d`, `sloyd_job`, `model_path`, `job_id` |
+| **Sloyd: Retexture** | `POST /jobs/retexture` | `model_3d`, `sloyd_job`, `model_path`, `job_id` |
+| **Sloyd: Split to Parts** | `POST /jobs/split-to-parts` | `model_3d`, `sloyd_job`, `model_path`, `job_id` |
 
-Generated files land in `ComfyUI/output/sloyd/`.
+### 360° skyboxes (`Sloyd/Environments`)
+
+| Node | Sloyd endpoint | Outputs |
+| --- | --- | --- |
+| **Sloyd: Text to Skybox** | `POST /jobs/text-to-worldbox` | `skybox`, `sloyd_job`, `skybox_path`, `job_id` |
+| **Sloyd: Skybox from Image** | `image-upload` → `skybox-from-image` | `skybox`, `sloyd_job`, `skybox_path`, `job_id` |
+| **Sloyd: Edit Skybox** | `POST /jobs/skybox-edit` | `skybox`, `sloyd_job`, `skybox_path`, `job_id` |
+
+### 2D images (`Sloyd/2D`)
+
+| Node | Sloyd endpoint | Outputs |
+| --- | --- | --- |
+| **Sloyd: Text to Image** | `POST /jobs/text-to-image` | `image`, `sloyd_job`, `image_path`, `job_id` |
+| **Sloyd: Image Edit** | `image-upload` → `image-edit` | `image`, `sloyd_job`, `image_path`, `job_id` |
+| **Sloyd: Sketch to Image** | `POST /jobs/sketch-to-image` | `image`, `sloyd_job`, `image_path`, `job_id` |
+
+### Utility (`Sloyd/Utility`)
+
+| Node | Purpose |
+| --- | --- |
+| **Sloyd: Save Asset** | Copy a generated asset to a filename you choose |
+
+Generated files auto-save to `ComfyUI/output/sloyd/`.
 
 ### Wiring
 
-The `model_3d` output plugs straight into **Preview 3D (Advanced)** to view it, or a
-**Save 3D** node:
+Outputs are ready to use with no adapter node.
+
+**3D** — `model_3d` plugs straight into **Preview 3D (Advanced)** or a **Save 3D** node:
 
 ```
 Sloyd: Text to 3D ──model_3d──> Preview 3D (Advanced)
 ```
 
+**Skybox / 2D** — `skybox` and `image` are normal ComfyUI `IMAGE` outputs, so they
+flow into `Save Image`, `Preview Image`, upscalers, and community 360° viewers such
+as [ComfyUI_preview360panorama](https://github.com/ProGamerGov/ComfyUI_preview360panorama):
+
+```
+Load Image ──image──> Sloyd: Skybox from Image ──skybox──> Preview 360 Panorama
+```
+
+**Chaining model tools** — `sloyd_job` is a typed handle carrying the job id and the
+credentials that made it. Retexture, Split to Parts, and Edit Skybox accept it, so
+you wire the upstream node's `sloyd_job` output straight in, no copying identifiers:
+
+```
+Sloyd: Text to 3D ──sloyd_job──> Sloyd: Retexture ──model_3d──> Preview 3D (Advanced)
+```
+
 (On older ComfyUI builds without the File3D type, `model_3d` falls back to a path
 string; use **Sloyd: Save Asset** with the `model_path` output to keep the file.)
 
-`skybox` is a normal ComfyUI `IMAGE` (equirectangular), so it flows into
-`SaveImage`, upscalers, and community 360° viewers such as
-[ComfyUI_preview360panorama](https://github.com/ProGamerGov/ComfyUI_preview360panorama):
-
-```
-LoadImage ──image──> Sloyd: Skybox from Image ──skybox──> Preview 360 Panorama
-```
-
-`SLOYD_JOB` is a typed handle carrying the job id plus the credentials that created
-it. Sloyd's model tools (retexture, split-to-parts, skybox-edit) take the id of an
-asset you already own, so this is how those nodes will chain once they ship here —
-no copying identifiers by hand.
+Credentials resolve automatically from the environment or config file (see Setup),
+so no credential node is needed on the graph.
 
 ## Setup
 

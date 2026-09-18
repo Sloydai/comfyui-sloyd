@@ -1,6 +1,6 @@
-"""Text-to-3D and Image-to-3D generation nodes.
+"""3D model generation nodes: text, single image, and multi-image to 3D.
 
-Both emit the same outputs:
+Every 3D node emits the same outputs:
 
     MODEL_3D     (FILE_3D_GLB) plugs straight into Preview 3D (Advanced) / Save 3D
     SLOYD_JOB    typed handle, chains into Retexture / Split to Parts
@@ -13,50 +13,49 @@ from __future__ import annotations
 import torch
 
 from .._compat import logger
-from ..client import GLB_EXTENSIONS
 from ..images import tensor_to_png_bytes
-from ..types import KIND_MODEL, SloydJob
 from .base import (
     CATEGORY_3D,
+    MODEL_3D_TYPE,
     SEED_INPUT,
     TEXTURE_RESOLUTIONS,
     TIMEOUT_INPUT,
     TOPOLOGIES,
-    build_model_3d,
     clamp_face_count,
+    finish_model_job,
     get_client,
-    output_dir,
-    to_relative_output_path,
     validate_prompt,
 )
-
-# model_3d is the FILE_3D_GLB socket that current ComfyUI 3D nodes accept. Falls back
-# to a plain string on older builds without the File3D type (see base.MODEL_3D_TYPE).
-from .base import MODEL_3D_TYPE
 
 RETURN_TYPES = (MODEL_3D_TYPE, "SLOYD_JOB", "STRING", "STRING")
 RETURN_NAMES = ("model_3d", "sloyd_job", "model_path", "job_id")
 
+# Multi-image jobs take noticeably longer than single-image; the live probe did not
+# finish one in 600s, so this family defaults higher.
+MULTI_IMAGE_TIMEOUT = {
+    "default": 1500,
+    "min": 60,
+    "max": 3600,
+    "step": 30,
+    "tooltip": "How long to wait for the job before giving up, in seconds. "
+    "Multi-image generation is slower than single-image.",
+}
 
-def _finish(client, job_id: str, endpoint: str, credentials, prompt: str, job: dict):
-    """Download the finished GLB and package the outputs."""
-    absolute_path = client.download_asset_to_file(job_id, output_dir(), GLB_EXTENSIONS)
-    relative_path = to_relative_output_path(absolute_path)
-    logger.info("Sloyd: saved %s", relative_path)
-
-    gen_params = job.get("genParams")
-    sloyd_job = SloydJob(
-        job_id=job_id,
-        kind=KIND_MODEL,
-        credentials=credentials,
-        endpoint=endpoint,
-        absolute_path=absolute_path,
-        relative_path=relative_path,
-        prompt=prompt,
-        gen_params=gen_params if isinstance(gen_params, dict) else {},
-    )
-    model_3d = build_model_3d(absolute_path)
-    return (model_3d, sloyd_job, relative_path, job_id)
+_TARGET_FACE_INPUT = (
+    "INT",
+    {
+        "default": 0,
+        "min": 0,
+        "max": 500000,
+        "step": 1000,
+        "tooltip": "0 lets the Sloyd pipeline choose. Maximum 500000.",
+    },
+)
+_TEXTURE_INPUT = (
+    TEXTURE_RESOLUTIONS,
+    {"default": "auto", "tooltip": "'none' produces a geometry-only model with no texture."},
+)
+_TOPOLOGY_INPUT = (TOPOLOGIES, {"default": "auto", "tooltip": "Mesh topology of the output."})
 
 
 class SloydTextTo3D:
@@ -74,27 +73,9 @@ class SloydTextTo3D:
                         "tooltip": "What to generate. Up to 4096 characters.",
                     },
                 ),
-                "topology": (
-                    TOPOLOGIES,
-                    {"default": "auto", "tooltip": "Mesh topology of the output."},
-                ),
-                "target_face_count": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 500000,
-                        "step": 1000,
-                        "tooltip": "0 lets the Sloyd pipeline choose. Maximum 500000.",
-                    },
-                ),
-                "texture_resolution": (
-                    TEXTURE_RESOLUTIONS,
-                    {
-                        "default": "auto",
-                        "tooltip": "'none' produces a geometry-only model with no texture.",
-                    },
-                ),
+                "topology": _TOPOLOGY_INPUT,
+                "target_face_count": _TARGET_FACE_INPUT,
+                "texture_resolution": _TEXTURE_INPUT,
                 "t_pose": (
                     "BOOLEAN",
                     {
@@ -105,7 +86,6 @@ class SloydTextTo3D:
                 "seed": SEED_INPUT,
             },
             "optional": {
-                "sloyd_credentials": ("SLOYD_CREDENTIALS",),
                 "timeout_seconds": TIMEOUT_INPUT,
             },
         }
@@ -128,7 +108,6 @@ class SloydTextTo3D:
         timeout_seconds: int = 900,
     ):
         cleaned_prompt = validate_prompt(prompt, required=True)
-
         with get_client(sloyd_credentials) as client:
             job_id = client.create_job_json(
                 "text-to-3d",
@@ -142,9 +121,7 @@ class SloydTextTo3D:
             )
             logger.info("Sloyd text-to-3d job %s started", job_id)
             job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd text-to-3d")
-            return _finish(
-                client, job_id, "text-to-3d", client.credentials, cleaned_prompt, job
-            )
+            return finish_model_job(client, job_id, "text-to-3d", job, prompt=cleaned_prompt)
 
 
 class SloydImageTo3D:
@@ -154,32 +131,16 @@ class SloydImageTo3D:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE", {"tooltip": "Reference image. Only the first frame of a batch is used."}),
-                "topology": (
-                    TOPOLOGIES,
-                    {"default": "auto", "tooltip": "Mesh topology of the output."},
+                "image": (
+                    "IMAGE",
+                    {"tooltip": "Reference image. Only the first frame of a batch is used."},
                 ),
-                "target_face_count": (
-                    "INT",
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 500000,
-                        "step": 1000,
-                        "tooltip": "0 lets the Sloyd pipeline choose. Maximum 500000.",
-                    },
-                ),
-                "texture_resolution": (
-                    TEXTURE_RESOLUTIONS,
-                    {
-                        "default": "auto",
-                        "tooltip": "'none' produces a geometry-only model with no texture.",
-                    },
-                ),
+                "topology": _TOPOLOGY_INPUT,
+                "target_face_count": _TARGET_FACE_INPUT,
+                "texture_resolution": _TEXTURE_INPUT,
                 "seed": SEED_INPUT,
             },
             "optional": {
-                "sloyd_credentials": ("SLOYD_CREDENTIALS",),
                 "timeout_seconds": TIMEOUT_INPUT,
             },
         }
@@ -201,7 +162,6 @@ class SloydImageTo3D:
         timeout_seconds: int = 900,
     ):
         image_bytes = tensor_to_png_bytes(image)
-
         with get_client(sloyd_credentials) as client:
             job_id = client.create_job_multipart(
                 "image-to-3d",
@@ -214,4 +174,92 @@ class SloydImageTo3D:
             )
             logger.info("Sloyd image-to-3d job %s started", job_id)
             job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd image-to-3d")
-            return _finish(client, job_id, "image-to-3d", client.credentials, "", job)
+            return finish_model_job(client, job_id, "image-to-3d", job)
+
+
+class SloydMultiImageTo3D:
+    """POST /jobs/multi-image-to-3d
+
+    frontImage is required; at least one of left/back/right is also required.
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "front_image": ("IMAGE", {"tooltip": "Front view. Required."}),
+            },
+            "optional": {
+                "left_image": ("IMAGE", {"tooltip": "Left view. At least one of left/back/right is required."}),
+                "back_image": ("IMAGE", {"tooltip": "Back view."}),
+                "right_image": ("IMAGE", {"tooltip": "Right view."}),
+                "generate_type": (
+                    ["Normal", "LowPoly", "Geometry", "Sketch"],
+                    {"default": "Normal", "tooltip": "Generation mode."},
+                ),
+                "polygon_type": (
+                    ["triangle", "quadrilateral"],
+                    {"default": "triangle", "tooltip": "Output polygon type."},
+                ),
+                "enable_pbr": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Generate PBR material maps."},
+                ),
+                "target_face_count": _TARGET_FACE_INPUT,
+                "seed": SEED_INPUT,
+                "timeout_seconds": ("INT", MULTI_IMAGE_TIMEOUT),
+            },
+        }
+
+    RETURN_TYPES = RETURN_TYPES
+    RETURN_NAMES = RETURN_NAMES
+    FUNCTION = "generate"
+    CATEGORY = CATEGORY_3D
+    DESCRIPTION = (
+        "Generate a 3D model (GLB) from up to four views of the same subject using the Sloyd API. "
+        "Front view required; connect at least one of left/back/right."
+    )
+
+    def generate(
+        self,
+        front_image: torch.Tensor,
+        left_image=None,
+        back_image=None,
+        right_image=None,
+        generate_type: str = "Normal",
+        polygon_type: str = "triangle",
+        enable_pbr: bool = False,
+        target_face_count: int = 0,
+        seed: int = 0,
+        sloyd_credentials=None,
+        timeout_seconds: int = 1500,
+    ):
+        extra_views = {
+            "leftImage": left_image,
+            "backImage": back_image,
+            "rightImage": right_image,
+        }
+        if all(v is None for v in extra_views.values()):
+            raise ValueError(
+                "Multi-Image to 3D needs at least one of left/back/right in addition to the front view."
+            )
+
+        files = {"frontImage": ("front.png", tensor_to_png_bytes(front_image), "image/png")}
+        for field, tensor in extra_views.items():
+            if tensor is not None:
+                files[field] = (f"{field}.png", tensor_to_png_bytes(tensor), "image/png")
+
+        data = {
+            "GenerateType": generate_type,
+            "PolygonType": polygon_type,
+            "EnablePBR": "true" if enable_pbr else "false",  # API expects a string
+        }
+        faces = clamp_face_count(target_face_count)
+        if faces:
+            data["FaceCount"] = str(faces)
+
+        with get_client(sloyd_credentials) as client:
+            job_id = client.create_job_multipart("multi-image-to-3d", files=files, data=data)
+            logger.info("Sloyd multi-image-to-3d job %s started", job_id)
+            job = client.wait_for_job(job_id, float(timeout_seconds), "Sloyd multi-image-to-3d")
+            return finish_model_job(client, job_id, "multi-image-to-3d", job)
