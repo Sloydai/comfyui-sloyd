@@ -47,7 +47,7 @@ requires-comfyui = ">=0.3.40"
 # so there is no separate host to maintain. Must be the raw.* form: a github.com/blob/
 # link returns an HTML page, not an image, so the Registry cannot render it.
 Icon = "https://raw.githubusercontent.com/Sloydai/comfyui-sloyd/main/assets/icon.png"
-Banner = "https://raw.githubusercontent.com/Sloydai/comfyui-sloyd/main/assets/banner.png"
+Banner = "https://raw.githubusercontent.com/Sloydai/comfyui-sloyd/main/assets/banner.jpg"
 
 [tool.setuptools]
 packages = ["sloyd_nodes"]
