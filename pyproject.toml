@@ -5,26 +5,48 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sloyd"
 version = "0.1.0"
-description = "Generate 3D models and 360° skyboxes with the Sloyd API, directly in ComfyUI."
+# Shown in ComfyUI-Manager search results and on the Registry listing. Lead with the
+# capability users search for ("3D model", "skybox"), since this is the discovery text.
+description = "Generate production-ready 3D models, 360° skyboxes, and images from text or reference images using the Sloyd API."
 readme = "README.md"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.31.0",
+]
+keywords = [
+    "3d",
+    "3d-generation",
+    "text-to-3d",
+    "image-to-3d",
+    "skybox",
+    "panorama",
+    "hdri",
+    "equirectangular",
+    "retexture",
+    "glb",
+    "mesh",
+    "game-assets",
+    "sloyd",
 ]
 classifiers = [
     "Operating System :: OS Independent",
 ]
 
 [project.urls]
-Repository = "https://github.com/sloyd-ai/comfyui-sloyd"
+Homepage = "https://sloyd.ai"
+Repository = "https://github.com/Sloydai/comfyui-sloyd"
 Documentation = "https://api-dashboard.sloyd.ai/documentation/"
-"Bug Tracker" = "https://github.com/sloyd-ai/comfyui-sloyd/issues"
+"Bug Tracker" = "https://github.com/Sloydai/comfyui-sloyd/issues"
 
 [tool.comfy]
 PublisherId = "sloyd"
 DisplayName = "Sloyd AI - 3D model generator"
 requires-comfyui = ">=0.3.40"
+# Icon: square, <=400x400, SVG/PNG/JPG/GIF. Banner: 21:9.
+# Both must be publicly reachable URLs before publishing; see PUBLISHING.md.
+Icon = ""
+Banner = ""
 
 [tool.setuptools]
 packages = ["sloyd_nodes"]

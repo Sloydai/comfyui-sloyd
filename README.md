@@ -1,6 +1,37 @@
 # Sloyd AI for ComfyUI
 
-Generate 3D models and 360° skyboxes with the [Sloyd API](https://api-dashboard.sloyd.ai/documentation/) inside your ComfyUI workflows.
+Generate production-ready **3D models**, **360° skyboxes**, and **images** from text or
+reference images, using the [Sloyd API](https://api-dashboard.sloyd.ai/documentation/)
+inside your ComfyUI workflows.
+
+Twelve nodes covering every generation endpoint Sloyd offers: text/image/multi-image to
+3D, retexture, split into parts, 360° skyboxes from text or an image plus skybox
+editing, and 2D text-to-image, image editing, and sketch-to-image.
+
+Models come back as GLB with clean topology and PBR textures, ready for Blender, Unity,
+Unreal, or Godot. Outputs plug straight into ComfyUI's own preview and save nodes, no
+adapter nodes needed.
+
+> Sloyd runs in the cloud, so these nodes need no local model weights and no GPU.
+> They do need a Sloyd API key with prepaid credits: see [Setup](#setup).
+
+## Quick start
+
+1. Install the pack (see [Install](#install)) and restart ComfyUI.
+2. Add your Sloyd key in **Settings → Sloyd → Credentials**
+   ([get one here](https://api-dashboard.sloyd.ai/)).
+3. Open an example from [`example_workflows/`](example_workflows) and press Run.
+
+## Example workflows
+
+Drag any of these onto the ComfyUI canvas, or use **Workflow → Open**.
+
+| File | What it does |
+| --- | --- |
+| [`01_text_to_3d.json`](example_workflows/01_text_to_3d.json) | Text prompt → 3D model, shown in Preview 3D |
+| [`02_image_to_3d.json`](example_workflows/02_image_to_3d.json) | Load an image → 3D model |
+| [`03_text_to_skybox.json`](example_workflows/03_text_to_skybox.json) | Text prompt → 360° equirectangular skybox |
+| [`04_retexture_chain.json`](example_workflows/04_retexture_chain.json) | Generate a model, then retexture it via the `sloyd_job` wire |
 
 ## Nodes
 
