@@ -11,3 +11,7 @@ scripts/
 # Listing artwork is fetched by the Registry from the raw GitHub URLs in
 # pyproject.toml, so it does not need to ship in every user's install.
 assets/
+
+# Local review page.
+REVIEW.html
+review_assets/

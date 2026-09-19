@@ -24,3 +24,7 @@ venv/
 .idea/
 .vscode/
 assets/banner.png
+
+# Local review page, not part of the published pack.
+REVIEW.html
+review_assets/
