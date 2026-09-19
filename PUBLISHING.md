@@ -27,6 +27,47 @@ without them looks unfinished next to competitors.
 Both must be publicly reachable URLs (e.g. committed to this repo and referenced via
 their raw GitHub URL, or hosted on sloyd.ai).
 
+## Template thumbnails (animated, and why they are named .jpg)
+
+The cards in **Workflow → Browse Templates** are driven entirely by two things per
+template: the `.json` filename (which *is* the displayed title) and a same-named
+image beside it. Verified in the frontend source, `workflowTemplatesStore.ts`
+hardcodes both fields for custom-node templates:
+
+```ts
+mediaType: 'image',
+mediaSubtype: 'jpg',
+```
+
+So a real `<video>` thumbnail is impossible, and the frontend will only ever request
+`<name>.jpg`. Tags and the crown badge are also unavailable; those belong to
+Comfy-Org's curated partner index, which a custom pack cannot write into.
+
+**What we do instead:** the four `.jpg` files are actually **animated WebP**. Browsers
+content-sniff images and ignore the extension, so a ~3 s loop plays in the card. This
+was verified end to end against the real ComfyUI static route in a headed browser
+(4/4 load and animate), with a correctly-named control to prove the test itself works.
+
+Each is a genuine render of that workflow's own output, not stock or AI-generated
+footage: turntables come from the actual GLBs, and the skybox loop is a real camera
+pan inside the actual equirectangular panorama.
+
+| Card | Loop |
+| --- | --- |
+| Text to 3D Model | treasure chest turntable |
+| Image to 3D Model | static input photo beside the rotating mesh |
+| Text to Skybox 360 Panorama | 360° pan from inside the panorama |
+| Retexture 3D Model | one mesh, three materials, rotating in lockstep |
+
+Specs: 640×360, 36 frames at 80 ms (~2.9 s), WebP quality 55–62, 242–411 KB each
+(~1.2 MB total). GIF was rejected: 1.67 MB for the same loop, with 256-colour banding.
+
+**Known fragility:** this relies on the extension not matching the contents. If
+ComfyUI ever validates that a `.jpg` is really JPEG, all four cards would fall back to
+the "missing thumbnail" gradient at once. Frame 0 of each loop is composed to stand
+alone as a still, which limits the damage but does not prevent it. If that happens,
+re-encode the same first frames as real JPEG and lose only the motion.
+
 ## Regenerating the example workflows
 
 `example_workflows/*.json` are generated, not hand-edited. A workflow's
