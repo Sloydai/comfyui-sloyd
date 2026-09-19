@@ -4,30 +4,60 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sloyd"
-version = "0.1.2"
+version = "0.1.3"
 # Shown in ComfyUI-Manager search results and on the Registry listing. Lead with the
 # capability users search for ("3D model", "skybox"), since this is the discovery text.
-description = "Generate production-ready 3D models, 360° skyboxes, and images from text or reference images using the Sloyd API."
+# Lead with the concrete, verifiable differentiators rather than adjectives: GLB output,
+# 360 skyboxes (nothing else in the registry generates them), and no local GPU or model
+# weights. Comfy's publishing standards warn against excessive self-promotion, so this
+# stays factual; the persuasion comes from specifics, not hype.
+description = "Text and image to 3D models as GLB with clean topology and PBR textures, plus 360° skyboxes, retexturing and part splitting. Runs on the Sloyd cloud API, so no GPU or model downloads are needed."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.31.0",
 ]
+# The Registry has no publisher-settable tags field (`tags_admin` is admin-only, and no
+# sampled node has tags populated), so keywords are the only discovery lever we control.
+# Chosen to match what users actually type, and to cover the downstream tools they are
+# bringing the asset into. Kept to genuinely applicable terms; padding this list with
+# loosely-related words would read as keyword stuffing to a moderated listing.
 keywords = [
+    # what it makes
     "3d",
+    "3d-model",
     "3d-generation",
     "text-to-3d",
     "image-to-3d",
+    "multi-image-to-3d",
+    "mesh",
+    "glb",
+    "gltf",
+    "pbr",
+    "retexture",
+    "texturing",
+    # environments
     "skybox",
     "panorama",
-    "hdri",
     "equirectangular",
-    "retexture",
-    "glb",
-    "mesh",
+    "hdri",
+    "360",
+    # 2D endpoints the pack also exposes
+    "text-to-image",
+    "sketch-to-image",
+    "image-edit",
+    # who it is for / where the asset goes
     "game-assets",
+    "game-development",
+    "blender",
+    "unity",
+    "unreal",
+    "godot",
+    # service
     "sloyd",
+    "api",
+    "cloud",
 ]
 classifiers = [
     "Operating System :: OS Independent",
