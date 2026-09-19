@@ -26,12 +26,16 @@ adapter nodes needed.
 
 Drag any of these onto the ComfyUI canvas, or use **Workflow → Open**.
 
-| File | What it does |
+Find them in ComfyUI under **Workflow → Browse Templates → comfyui-sloyd**.
+
+| Template | What it does |
 | --- | --- |
-| [`01_text_to_3d.json`](example_workflows/01_text_to_3d.json) | Text prompt → 3D model, shown in Preview 3D |
-| [`02_image_to_3d.json`](example_workflows/02_image_to_3d.json) | Load an image → 3D model |
-| [`03_text_to_skybox.json`](example_workflows/03_text_to_skybox.json) | Text prompt → 360° equirectangular skybox |
-| [`04_retexture_chain.json`](example_workflows/04_retexture_chain.json) | Generate a model, then retexture it via the `sloyd_job` wire |
+| **Sloyd 3D - Text to 3D Model** | Text prompt → GLB model, shown in Preview 3D |
+| **Sloyd 3D - Image to 3D Model** | Reference image → GLB model |
+| **Sloyd 3D - Text to Skybox 360 Panorama** | Text prompt → 360° equirectangular skybox |
+| **Sloyd 3D - Retexture 3D Model** | Generate a model, then retexture it via the `sloyd_job` wire |
+
+Every thumbnail is real output from these workflows, nothing mocked.
 
 ## Nodes
 

@@ -200,7 +200,7 @@ def main():
     )
     b = w.add("Preview3DAdvanced", [460, 40], size=[420, 500])
     w.link(a, "model_3d", b, "model_3d")
-    w.dump("01_text_to_3d.json", "Generate a 3D model from a text prompt and preview it.")
+    w.dump("Sloyd 3D - Text to 3D Model.json", "Generate a 3D model from a text prompt and preview it.")
 
     w = WF()
     li = w.add("LoadImage", [40, 40], size=[320, 320])
@@ -208,7 +208,7 @@ def main():
     b = w.add("Preview3DAdvanced", [780, 40], size=[420, 500])
     w.link(li, "IMAGE", a, "image")
     w.link(a, "model_3d", b, "model_3d")
-    w.dump("02_image_to_3d.json", "Turn a reference image into a 3D model.")
+    w.dump("Sloyd 3D - Image to 3D Model.json", "Turn a reference image into a 3D model.")
 
     w = WF()
     a = w.add(
@@ -220,7 +220,7 @@ def main():
     b = w.add("PreviewImage", [460, 40], size=[460, 460])
     w.link(a, "skybox", b, "images")
     w.dump(
-        "03_text_to_skybox.json",
+        "Sloyd 3D - Text to Skybox 360 Panorama.json",
         "Generate a 360 equirectangular skybox. The saved file is full resolution; "
         "output_max_size only caps the in-graph image so previews stay fast. Swap "
         "Preview Image for a 360 viewer (e.g. ComfyUI_preview360panorama) to look around.",
@@ -245,7 +245,7 @@ def main():
     w.link(a, "sloyd_job", r, "sloyd_job")
     w.link(r, "model_3d", p2, "model_3d")
     w.dump(
-        "04_retexture_chain.json",
+        "Sloyd 3D - Retexture 3D Model.json",
         "Generate a model, then retexture it. The sloyd_job wire carries the source id, "
         "so leave job_id blank. Keep 'control after generate' on fixed so re-running only "
         "re-bills the node you changed.",
